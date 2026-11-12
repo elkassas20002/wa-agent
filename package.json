@@ -1,0 +1,20 @@
+{
+  "name": "wa-agent",
+  "version": "1.0.0",
+  "description": "WhatsApp Business web panel with AI assistant for trainees",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "build": "node -e \"console.log('no build step')\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.18",
+    "express": "^4.21.2",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4"
+  }
+}

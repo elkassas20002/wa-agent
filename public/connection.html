@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إدارة الربط مع واتساب</title>
+<link rel="stylesheet" href="/style.css?v=7">
+<link rel="stylesheet" href="/connection.css?v=7">
+</head>
+<body class="cx">
+<header class="topbar">
+  <a class="brand" href="/" style="color:#fff;text-decoration:none">→ 💬 لوحة واتساب الذكية</a>
+  <div class="cx-title">🔌 إدارة الربط</div>
+</header>
+
+<main class="cx-grid">
+  <!-- Status -->
+  <section class="cx-card cx-hero" id="hero">
+    <div class="cx-hero-top">
+      <div class="cx-badge" id="badge">…</div>
+      <div class="cx-hero-text">
+        <div class="cx-h1" id="heroTitle">جارٍ التحميل…</div>
+        <div class="muted" id="heroSub"></div>
+      </div>
+    </div>
+    <div class="cx-stats">
+      <div><span class="muted">الرقم المرتبط</span><b id="stNumber">—</b></div>
+      <div><span class="muted">مدة الاتصال</span><b id="stUptime">—</b></div>
+      <div><span class="muted">المحاولة التالية</span><b id="stNext">—</b></div>
+      <div><span class="muted">آخر خطأ</span><b id="stError">—</b></div>
+      <div><span class="muted">الجلسة المحفوظة</span><b id="stSession">—</b></div>
+      <div><span class="muted">عدد المحاولات</span><b id="stAttempts">—</b></div>
+    </div>
+  </section>
+
+  <!-- Linking -->
+  <section class="cx-card" id="linkCard">
+    <h2>📱 ربط الجهاز</h2>
+    <div class="cx-tabs">
+      <button class="active" data-t="qr">رمز QR</button>
+      <button data-t="code">رمز بالرقم</button>
+    </div>
+    <div id="tabQr">
+      <div class="cx-qr-wrap">
+        <img id="qr" class="qr hidden" alt="QR">
+        <div id="qrNote" class="muted cx-center">سيظهر الرمز هنا عندما يكون واتساب جاهزاً للربط.</div>
+      </div>
+      <ol class="steps">
+        <li>افتح <b>واتساب بيزنس</b> في جوالك</li>
+        <li>الإعدادات ← <b>الأجهزة المرتبطة</b> ← <b>ربط جهاز</b></li>
+        <li>امسح الرمز. يتجدد الرمز تلقائياً كل نحو 20 ثانية</li>
+      </ol>
+    </div>
+    <div id="tabCode" class="hidden">
+      <p class="muted">بديل للرمز: تكتب رقمك هنا، فيظهر رمز من 8 خانات تكتبه في جوالك.</p>
+      <form id="pairForm" class="cx-row">
+        <input id="pairPhone" type="tel" placeholder="9665xxxxxxxx" dir="ltr">
+        <button class="btn primary">إنشاء رمز الربط</button>
+      </form>
+      <div id="pairCode" class="cx-paircode hidden"></div>
+      <ol class="steps">
+        <li>في الجوال: الأجهزة المرتبطة ← ربط جهاز</li>
+        <li>اضغط <b>"الربط برقم الهاتف بدلاً من ذلك"</b></li>
+        <li>اكتب الرمز الظاهر هنا</li>
+      </ol>
+    </div>
+    <div id="linkedMsg" class="cx-ok hidden">✅ الجهاز مرتبط ويعمل. لا حاجة لأي رمز.</div>
+  </section>
+
+  <!-- Controls -->
+  <section class="cx-card">
+    <h2>🎛️ التحكم</h2>
+    <div class="cx-actions">
+      <button class="btn cx-btn" id="btnConnect"><b>⚡ اتصال الآن</b><span>تجاوز وقت الانتظار والمحاولة فوراً</span></button>
+      <button class="btn cx-btn" id="btnStop"><b>⏸️ إيقاف الاتصال</b><span>يوقف الاتصال ويحتفظ بالجلسة لاستئنافها لاحقاً</span></button>
+      <button class="btn cx-btn danger" id="btnLogout"><b>🔄 فصل وربط من جديد</b><span>يحذف الجلسة ويُظهر رمزاً جديداً</span></button>
+    </div>
+    <p class="cx-warn">⚠️ كثرة المحاولات المتتالية قد تجعل واتساب يرفض الاتصال مؤقتاً. إذا ظهرت حالة "مرفوض مؤقتاً" فاترك اللوحة تعيد المحاولة وحدها.</p>
+  </section>
+
+  <!-- Events -->
+  <section class="cx-card cx-span">
+    <h2>🧾 سجل الاتصال</h2>
+    <ul id="events" class="cx-events"></ul>
+  </section>
+
+  <!-- Health -->
+  <section class="cx-card">
+    <h2>🩺 حالة الخادم</h2>
+    <table class="cx-table" id="health"></table>
+  </section>
+
+  <section class="cx-card">
+    <h2>ℹ️ معاني الحالات</h2>
+    <ul class="cx-legend">
+      <li><span class="dotc ok"></span><b>متصل:</b> كل شيء يعمل وتصل الرسائل.</li>
+      <li><span class="dotc qr"></span><b>بانتظار الربط:</b> امسح الرمز أو استخدم الربط بالرقم.</li>
+      <li><span class="dotc warn"></span><b>إعادة الاتصال:</b> انقطاع مؤقت، يعود وحده عادة خلال ثوانٍ.</li>
+      <li><span class="dotc bad"></span><b>مرفوض مؤقتاً:</b> واتساب يرفض الاتصال. اللوحة تتمهّل وتعيد المحاولة.</li>
+      <li><span class="dotc off"></span><b>موقوف:</b> أوقفته يدوياً. اضغط "اتصال الآن" للاستئناف.</li>
+    </ul>
+  </section>
+</main>
+
+<script src="/connection.js?v=7"></script>
+</body>
+</html>

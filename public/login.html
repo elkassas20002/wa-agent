@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>تسجيل الدخول - لوحة واتساب</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="login-body">
+  <form class="login-card" id="f">
+    <div class="logo">💬</div>
+    <h1>لوحة واتساب الذكية</h1>
+    <p class="muted">أدخل كلمة المرور للمتابعة</p>
+    <input type="password" id="pw" placeholder="كلمة المرور" autofocus required>
+    <button type="submit" class="btn primary">دخول</button>
+    <p id="err" class="err"></p>
+  </form>
+<script>
+document.getElementById('f').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ password: document.getElementById('pw').value }) });
+  if (r.ok) location.href = '/';
+  else document.getElementById('err').textContent = (await r.json()).error || 'خطأ';
+};
+</script>
+</body>
+</html>
