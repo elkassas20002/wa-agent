@@ -24,9 +24,11 @@ let reconnects = 0;
 // Connection profiles, tried in order if WhatsApp keeps closing the connection before showing a QR.
 // The first one is the setup that connected successfully on this server.
 const CONFIGS = [
-  { name: 'mac-chrome-full', browser: () => Browsers.macOS('Chrome'), full: true, latest: true },
-  { name: 'mac-chrome-builtin-version', browser: () => Browsers.macOS('Chrome'), full: false, latest: false },
-  { name: 'ubuntu-chrome', browser: () => Browsers.ubuntu('Chrome'), full: false, latest: true }
+  // The library's built-in WhatsApp version is the one that works on this server;
+  // the "latest" fetched version gets refused (428) before the QR.
+  { name: 'mac-chrome-builtin-version', browser: () => Browsers.macOS('Chrome'), full: true, latest: false },
+  { name: 'ubuntu-chrome-builtin-version', browser: () => Browsers.ubuntu('Chrome'), full: false, latest: false },
+  { name: 'mac-chrome-latest-version', browser: () => Browsers.macOS('Chrome'), full: false, latest: true }
 ];
 let cfgIndex = 0;
 let earlyFails = 0; // closes without ever getting a QR or opening
