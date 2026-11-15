@@ -3,76 +3,93 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>try{var t=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");document.documentElement.dataset.theme=t}catch(e){}</script>
 <title>لوحة واتساب الذكية</title>
-<link rel="stylesheet" href="/style.css?v=8">
+<link rel="stylesheet" href="/style.css?v=9">
 </head>
 <body>
+<div class="app" id="app">
+<nav class="rail">
+  <div class="logo">💬</div>
+  <button class="rail-btn active" id="navChats" data-tip="المحادثات">💬</button>
+  <a class="rail-btn" href="/connection.html" data-tip="إدارة الربط">🔌</a>
+  <button class="rail-btn" id="btnAlerts" data-tip="التنبيهات">🔔<span id="alertCount" class="badge hidden">0</span></button>
+  <button class="rail-btn" id="btnReport" data-tip="التقارير">📊</button>
+  <button class="rail-btn" id="btnAssistant" data-tip="المساعد الشخصي">🤖</button>
+  <div class="spacer"></div>
+  <button class="rail-btn" id="btnTheme" data-tip="الوضع الليلي / النهاري">🌙</button>
+  <button class="rail-btn" id="btnSettings" data-tip="الإعدادات">⚙️</button>
+</nav>
+
+<div class="main">
 <header class="topbar">
-  <div class="brand">💬 لوحة واتساب الذكية</div>
-  <div class="status" id="status"><span class="dot"></span><span id="statusText">جارٍ الاتصال…</span>
-    <button class="btn small hidden" id="btnRelink" title="فصل الجلسة الحالية وإظهار رمز QR جديد">🔄 رمز QR جديد</button></div>
-  <div class="mode">
-    <label for="mode">وضع المساعد:</label>
-    <select id="mode">
-      <option value="off">متوقف</option>
-      <option value="draft">يقترح الرد وأنا أرسل</option>
-      <option value="auto">يرد تلقائياً</option>
-    </select>
+  <span class="brand">لوحة واتساب الذكية</span>
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">جارٍ الاتصال…</span></div>
+  <button class="btn small hidden" id="btnRelink" title="فصل الجلسة الحالية وإظهار رمز QR جديد">🔄 رمز جديد</button>
+  <div class="grow"></div>
+  <span class="seg-label">وضع المساعد</span>
+  <div class="seg" id="modeSeg">
+    <button data-mode="off">متوقف</button>
+    <button data-mode="draft">يقترح</button>
+    <button data-mode="auto">يرد تلقائياً</button>
   </div>
-  <div class="actions">
-    <a class="btn" href="/connection.html" style="text-decoration:none;color:inherit">🔌 الربط</a>
-    <button class="btn" id="btnAlerts">🔔 <span id="alertCount" class="badge hidden">0</span></button>
-    <button class="btn" id="btnReport">📊 التقارير</button>
-    <button class="btn" id="btnAssistant">🤖 المساعد</button>
-    <button class="btn" id="btnSettings">⚙️ الإعدادات</button>
-  </div>
+  <select id="mode" class="hidden"><option value="off"></option><option value="draft"></option><option value="auto"></option></select>
 </header>
 
 <main class="layout">
   <aside class="sidebar">
-    <input id="search" class="search" placeholder="🔍 بحث في المحادثات">
+    <input id="search" class="search" placeholder="🔍 بحث بالاسم أو الرقم أو نص الرسالة">
     <div class="tabs" id="tabs">
-      <button data-f="all" class="active">الكل</button>
-      <button data-f="waiting">بانتظار رد</button>
-      <button data-f="important">مهم</button>
-      <button data-f="draft">مسودات</button>
+      <button data-f="all" class="active">الكل <span class="cnt" id="cntAll">0</span></button>
+      <button data-f="waiting">بانتظار رد <span class="cnt" id="cntWaiting">0</span></button>
+      <button data-f="important">مهم <span class="cnt" id="cntImportant">0</span></button>
+      <button data-f="draft">مسودات <span class="cnt" id="cntDraft">0</span></button>
     </div>
     <ul id="chatList" class="chat-list"></ul>
   </aside>
 
   <section class="chat" id="chatPane">
-    <div class="empty" id="emptyState">اختر محادثة من القائمة</div>
+    <div class="empty" id="emptyState"><div class="big">💬</div><h3>اختر محادثة</h3><div>اختر محادثة من القائمة لعرض الرسائل والرد عليها</div></div>
     <div class="chat-inner hidden" id="chatInner">
       <div class="chat-head">
-        <div>
-          <div class="chat-name" id="chatName"></div>
-          <div class="muted small" id="chatSub"></div>
+        <div class="chat-who">
+          <button class="btn ghost small" id="btnBack" aria-label="رجوع">→</button>
+          <div class="avatar" id="chatAvatar"></div>
+          <div style="min-width:0">
+            <div class="chat-name" id="chatName"></div>
+            <div class="muted small" id="chatSub" dir="ltr"></div>
+          </div>
         </div>
         <div class="chat-tools">
-          <label class="switch" title="الرد التلقائي في هذه المحادثة"><input type="checkbox" id="chatAuto"> المساعد مفعّل</label>
-          <button class="btn small" id="btnResume" title="المساعد متوقف مؤقتاً لأنك رددت من جوالك">▶️ استئناف المساعد</button>
-          <button class="btn small" id="btnImportant">⭐ مهم</button>
+          <label class="switch" title="الرد التلقائي في هذه المحادثة"><input type="checkbox" id="chatAuto"> المساعد</label>
+          <button class="btn small" id="btnResume" title="المساعد متوقف مؤقتاً لأنك رددت من جوالك">▶️ استئناف</button>
+          <button class="btn small" id="btnImportant">☆ مهم</button>
           <button class="btn small" id="btnSummarize">📝 لخّص</button>
         </div>
       </div>
       <div class="flag hidden" id="chatFlag"></div>
       <div class="messages" id="messages"></div>
       <div class="draft hidden" id="draftBox">
-        <div class="draft-title">🤖 اقتراح المساعد:</div>
+        <div class="draft-title">🤖 اقتراح المساعد</div>
         <textarea id="draftText" rows="3"></textarea>
         <div class="draft-actions">
           <button class="btn primary" id="btnSendDraft">إرسال الاقتراح</button>
           <button class="btn" id="btnRegen">🔄 اقتراح جديد</button>
-          <button class="btn" id="btnDiscard">تجاهل</button>
+          <button class="btn ghost" id="btnDiscard">تجاهل</button>
         </div>
       </div>
       <form class="composer" id="composer">
-        <textarea id="input" rows="1" placeholder="اكتب رسالة… (Enter للإرسال، Shift+Enter لسطر جديد)"></textarea>
+        <div class="quick-menu hidden" id="quickMenu"></div>
+        <button class="btn" type="button" id="btnQuick" title="الردود الجاهزة">⚡</button>
+        <textarea id="input" rows="1" placeholder="اكتب رسالة… (Enter للإرسال)"></textarea>
         <button class="btn primary" type="submit">إرسال</button>
       </form>
     </div>
   </section>
 </main>
+</div>
+</div>
+<div class="toasts" id="toasts"></div>
 
 <!-- QR overlay -->
 <div class="overlay hidden" id="qrOverlay">
@@ -111,6 +128,6 @@
   </form>
 </aside>
 
-<script src="/app.js?v=8"></script>
+<script src="/app.js?v=9"></script>
 </body>
 </html>

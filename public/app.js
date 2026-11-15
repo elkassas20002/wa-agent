@@ -16,7 +16,20 @@ const fmtTime = (ts) => {
 };
 const displayName = (c) => c.name || (c.id.endsWith('@s.whatsapp.net') ? '+' + c.id.split('@')[0] : 'متدرب');
 
+const hue = (id) => { let h = 7; for (const ch of String(id).split('@')[0]) h = (h * 33 + ch.charCodeAt(0)) % 9973; return (h * 47) % 360; };
+const initial = (c) => displayName(c).replace('+', '').trim().slice(0, 1) || '؟';
+function toast(text, type) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (type === 'error' ? ' error' : '');
+  t.textContent = text;
+  $('toasts').appendChild(t);
+  setTimeout(() => t.remove(), type === 'error' ? 6000 : 3000);
+}
+
 let chats = [];
+let lastListHtml = '';
+let stickBottom = true;
+let rules = [];
 let current = null;
 let filter = 'all';
 let messages = [];
@@ -27,11 +40,12 @@ function renderState(s) {
   const st = $('status');
   st.classList.remove('ok', 'bad');
   const map = { connected: 'متصل', qr: 'بانتظار مسح الرمز', reconnecting: 'إعادة الاتصال…', starting: 'جارٍ التشغيل…', blocked: 'واتساب يرفض الاتصال مؤقتاً', stopped: 'الاتصال موقوف', idle: 'غير مرتبط' };
-  $('statusText').textContent = (map[s.status] || s.status) + (s.me ? ' — ' + (s.me.name || '+' + s.me.id.split('@')[0]) : '') + (s.ai ? ' · 🤖 ذكاء اصطناعي' : ' · ردود بالكلمات المفتاحية');
+  $('statusText').textContent = (map[s.status] || s.status) + (s.me ? ' — ' + (s.me.name || '+' + s.me.id.split('@')[0]) : '') ;
+  $('status').title = s.ai ? 'الردود بالذكاء الاصطناعي' : 'الردود بالكلمات المفتاحية';
   if (s.status === 'connected') st.classList.add('ok');
   else if (s.status === 'qr') st.classList.add('bad');
-  if (s.mode) $('mode').value = s.mode;
-  $('btnRelink').classList.toggle('hidden', s.status === 'qr');
+  if (s.mode) { $('mode').value = s.mode; syncSeg(); }
+  $('btnRelink').classList.toggle('hidden', ['qr', 'connected'].includes(s.status));
   const showQr = s.status === 'qr' || (['starting', 'blocked', 'idle'].includes(s.status) && !s.me);
   if (!showQr) overlayDismissed = false;
   $('qrOverlay').classList.toggle('hidden', !showQr || overlayDismissed);
@@ -48,18 +62,26 @@ function renderState(s) {
 }
 
 let overlayDismissed = false;
-$('qrNew').onclick = async () => { $('qrMsg').textContent = 'جارٍ تجهيز الرمز…'; $('qrNew').classList.add('hidden'); try { await api('/api/wa/connect', { method: 'POST' }); } catch (e) { alert(e.message); } };
+$('qrNew').onclick = async () => { $('qrMsg').textContent = 'جارٍ تجهيز الرمز…'; $('qrNew').classList.add('hidden'); try { await api('/api/wa/connect', { method: 'POST' }); } catch (e) { toast(e.message, 'error'); } };
 $('qrSkip').onclick = () => { overlayDismissed = true; $('qrOverlay').classList.add('hidden'); };
 $('btnRelink').onclick = async () => {
   if (!confirm('سيتم فصل جلسة واتساب الحالية وإظهار رمز QR جديد لتمسحه. متابعة؟')) return;
   $('statusText').textContent = 'جارٍ تجهيز رمز جديد…';
-  try { await api('/api/wa/logout', { method: 'POST' }); } catch (e) { alert(e.message); }
+  try { await api('/api/wa/logout', { method: 'POST' }); } catch (e) { toast(e.message, 'error'); }
   lastStateKey = '';
+};
+function syncSeg() { [...$('modeSeg').children].forEach((b) => b.classList.toggle('active', b.dataset.mode === $('mode').value)); }
+$('modeSeg').onclick = (e) => {
+  const b = e.target.closest('button'); if (!b || b.dataset.mode === $('mode').value) return;
+  $('mode').value = b.dataset.mode;
+  $('mode').onchange({ target: $('mode') });
 };
 $('mode').onchange = async (e) => {
   const v = e.target.value;
-  if (v === 'auto' && !confirm('سيرد المساعد تلقائياً على المتدربين. الرسائل المهمة وغير الواضحة ستبقى لك. متابعة؟')) { e.target.value = 'draft'; return; }
-  await api('/api/settings', { method: 'POST', body: { mode: v } });
+  if (v === 'auto' && !confirm('سيرد المساعد تلقائياً على المتدربين. الرسائل المهمة وغير الواضحة ستبقى لك. متابعة؟')) { e.target.value = 'draft'; syncSeg(); return; }
+  syncSeg();
+  try { await api('/api/settings', { method: 'POST', body: { mode: v } }); toast('تم تغيير وضع المساعد'); } catch (err) { toast(err.message, 'error'); }
+  lastStateKey = '';
 };
 
 // ---------- chat list ----------
@@ -72,28 +94,33 @@ async function loadChats() {
 function renderChats() {
   const q = $('search').value.trim();
   const list = chats.filter((c) => {
-    if (q && !(displayName(c) + ' ' + c.id + ' ' + c.lastText).includes(q)) return false;
+    if (q && !(displayName(c) + ' ' + c.id + ' ' + c.lastText).toLowerCase().includes(q.toLowerCase())) return false;
     if (filter === 'waiting') return !c.lastFromMe;
     if (filter === 'important') return c.important || c.needsHuman;
     if (filter === 'draft') return !!c.draft;
     return true;
   });
-  $('chatList').innerHTML = list.map((c) => {
+  $('cntAll').textContent = chats.length;
+  $('cntWaiting').textContent = chats.filter((c) => !c.lastFromMe).length;
+  $('cntImportant').textContent = chats.filter((c) => c.important || c.needsHuman).length;
+  $('cntDraft').textContent = chats.filter((c) => c.draft).length;
+  const html = list.map((c) => {
     const tags = [];
-    if (c.important) tags.push('<span class="tag red">⭐ مهم</span>');
     if (c.needsHuman) tags.push('<span class="tag red">يحتاج تدخلك</span>');
-    if (c.draft) tags.push('<span class="tag amber">مسودة</span>');
-    if (c.paused) tags.push('<span class="tag">المساعد متوقف مؤقتاً</span>');
+    else if (c.important) tags.push('<span class="tag red">⭐ مهم</span>');
+    if (c.draft) tags.push('<span class="tag amber">مسودة جاهزة</span>');
+    if (c.paused) tags.push('<span class="tag">⏸ المساعد متوقف</span>');
     if (c.autoReply === false) tags.push('<span class="tag">المساعد معطّل</span>');
-    if (!c.lastFromMe) tags.push('<span class="tag green">بانتظار رد</span>');
-    return `<li data-id="${esc(c.id)}" class="${current === c.id ? 'active' : ''}">
-      <div class="avatar">${esc(displayName(c).replace('+', '').slice(0, 1))}</div>
+    if (!c.lastFromMe && !c.needsHuman) tags.push('<span class="tag green">بانتظار رد</span>');
+    return `<li data-id="${esc(c.id)}" class="${current === c.id ? 'active' : ''} ${c.unread ? 'unseen' : ''}">
+      <div class="avatar" style="--h:${hue(c.id)}">${esc(initial(c))}</div>
       <div class="ci">
         <div class="row"><span class="name">${esc(displayName(c))}</span><span class="time">${fmtTime(c.lastTs)}</span></div>
         <div class="row"><span class="last">${c.lastFromMe ? '✓ ' : ''}${esc(c.lastText)}</span>${c.unread ? `<span class="unread">${c.unread}</span>` : ''}</div>
-        <div class="tags">${tags.join('')}</div>
+        ${tags.length ? `<div class="tags">${tags.join('')}</div>` : ''}
       </div></li>`;
-  }).join('') || '<li class="muted" style="cursor:default">لا توجد محادثات بعد</li>';
+  }).join('') || `<li class="empty">${q || filter !== 'all' ? 'لا توجد نتائج مطابقة' : 'لا توجد محادثات بعد.<br>ستظهر هنا عند وصول أول رسالة.'}</li>`;
+  if (html !== lastListHtml) { lastListHtml = html; $('chatList').innerHTML = html; }
 }
 
 $('chatList').onclick = (e) => {
@@ -113,6 +140,9 @@ $('tabs').onclick = (e) => {
 async function openChat(id) {
   current = id;
   document.querySelector('.layout').classList.add('open');
+  $('app').classList.add('in-chat');
+  stickBottom = true;
+  lastMsgKey = '';
   $('emptyState').classList.add('hidden');
   $('chatInner').classList.remove('hidden');
   messages = await api('/api/chats/' + encodeURIComponent(id) + '/messages');
@@ -128,6 +158,8 @@ function renderChatHead() {
   const c = chats.find((x) => x.id === current);
   if (!c) return;
   $('chatName').textContent = displayName(c);
+  $('chatAvatar').textContent = initial(c);
+  $('chatAvatar').style.setProperty('--h', hue(c.id));
   $('chatSub').textContent = c.id.endsWith('@s.whatsapp.net') ? '+' + c.id.split('@')[0] : '';
   $('chatAuto').checked = c.autoReply !== false;
   $('btnResume').classList.toggle('hidden', !c.paused);
@@ -147,30 +179,40 @@ function renderChatHead() {
 }
 
 function renderMessages() {
+  const box = $('messages');
   let lastDay = '';
-  $('messages').innerHTML = messages.map((m) => {
+  const older = messages.length ? '<button class="btn small older" id="btnOlder">⬆️ تحميل رسائل أقدم من الجوال</button>' : '';
+  box.innerHTML = older + messages.map((m) => {
     const day = new Date(m.ts).toLocaleDateString('ar-SA', { weekday: 'long', day: 'numeric', month: 'long' });
     const sep = day !== lastDay ? `<div class="day-sep">${day}</div>` : '';
     lastDay = day;
-    const who = m.fromMe ? (m.by === 'agent' ? '🤖 المساعد · ' : m.by === 'phone' ? '📱 من الجوال · ' : '') : '';
-    return `${sep}<div class="msg ${m.fromMe ? 'me' : ''}">${esc(m.text)}<div class="meta">${who}${new Date(m.ts).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</div></div>`;
+    const who = m.fromMe ? (m.by === 'agent' ? '<span class="who bot">🤖 المساعد</span>' : m.by === 'phone' ? '<span class="who">📱 الجوال</span>' : '') : '';
+    return `${sep}<div class="msg ${m.fromMe ? 'me' : ''}">${esc(m.text)}<div class="meta">${who}<span>${new Date(m.ts).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}</span></div></div>`;
   }).join('');
-  $('messages').scrollTop = $('messages').scrollHeight;
+  if (stickBottom) box.scrollTop = box.scrollHeight;
+  const bo = $('btnOlder');
+  if (bo) bo.onclick = async () => {
+    bo.disabled = true; bo.textContent = '…جارٍ الطلب من الجوال';
+    try { await api(`/api/chats/${encodeURIComponent(current)}/history`, { method: 'POST' }); stickBottom = false; toast('تم طلب الرسائل الأقدم. تظهر خلال ثوانٍ إذا كان الجوال متصلاً بالإنترنت'); }
+    catch (e) { toast(e.message, 'error'); }
+  };
 }
+$('messages').onscroll = () => { const b = $('messages'); stickBottom = b.scrollHeight - b.scrollTop - b.clientHeight < 80; };
 
 // ---------- sending ----------
 async function send(text) {
   if (!text.trim() || !current) return;
   try { await api(`/api/chats/${encodeURIComponent(current)}/send`, { method: 'POST', body: { text } }); }
-  catch (e) { alert('تعذر الإرسال: ' + e.message); throw e; }
+  catch (e) { toast('تعذر الإرسال: ' + e.message, 'error'); throw e; }
   messages = await api('/api/chats/' + encodeURIComponent(current) + '/messages');
+  stickBottom = true;
   renderMessages();
   loadChats();
 }
 $('composer').onsubmit = async (e) => {
   e.preventDefault();
   const t = $('input').value;
-  $('input').value = '';
+  $('input').value = ''; autoGrow();
   try { await send(t); } catch (_) { $('input').value = t; }
 };
 $('input').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('composer').requestSubmit(); } };
@@ -330,7 +372,7 @@ $('btnSettings').onclick = async () => {
       humanPauseHours: Number(f.humanPauseHours.value), maxAutoRepliesPerHour: Number(f.maxAutoRepliesPerHour.value)
     };
     await api('/api/settings', { method: 'POST', body });
-    $('setMsg').textContent = '✓ تم الحفظ';
+    $('setMsg').textContent = '✓ تم الحفظ'; toast('تم حفظ الإعدادات');
   };
   $('waLogout').onclick = async () => { if (confirm('سيتم فصل واتساب وسيظهر رمز QR جديد. متابعة؟')) { await api('/api/wa/logout', { method: 'POST' }); $('modal').classList.add('hidden'); } };
   $('panelLogout').onclick = async () => { await api('/api/logout', { method: 'POST' }); location.href = '/login.html'; };
@@ -355,7 +397,33 @@ $('assistForm').onsubmit = (e) => { e.preventDefault(); const q = $('assistInput
 $('assistInput').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('assistForm').requestSubmit(); } };
 
 // mobile: back to list by tapping brand
-document.querySelector('.brand').onclick = () => document.querySelector('.layout').classList.remove('open');
+$('btnBack').onclick = () => { document.querySelector('.layout').classList.remove('open'); $('app').classList.remove('in-chat'); current = null; renderChats(); };
+$('navChats').onclick = () => { $('modal').classList.add('hidden'); $('assistant').classList.add('hidden'); };
+
+// theme
+function applyTheme(t) { document.documentElement.dataset.theme = t; $('btnTheme').textContent = t === 'dark' ? '☀️' : '🌙'; try { localStorage.setItem('theme', t); } catch (_) {} }
+$('btnTheme').onclick = () => applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+applyTheme(document.documentElement.dataset.theme || 'light');
+
+// quick replies (the saved ready-made replies)
+async function loadRules() { try { rules = (await api('/api/settings')).rules || []; } catch (_) {} }
+$('btnQuick').onclick = async () => {
+  const m = $('quickMenu');
+  if (!m.classList.contains('hidden')) { m.classList.add('hidden'); return; }
+  await loadRules();
+  m.innerHTML = rules.map((r, i) => `<button type="button" data-i="${i}"><b>${esc((r.keywords || []).slice(0, 4).join('، '))}</b>${esc(r.reply)}</button>`).join('') || '<div class="muted" style="padding:10px">لا توجد ردود جاهزة. أضفها من ⚙️ الإعدادات.</div>';
+  m.classList.remove('hidden');
+};
+$('quickMenu').onclick = (e) => {
+  const b = e.target.closest('button[data-i]'); if (!b) return;
+  $('input').value = rules[Number(b.dataset.i)].reply;
+  $('quickMenu').classList.add('hidden');
+  $('input').focus(); autoGrow();
+};
+document.addEventListener('click', (e) => { if (!e.target.closest('#quickMenu') && !e.target.closest('#btnQuick')) $('quickMenu').classList.add('hidden'); });
+function autoGrow() { const i = $('input'); i.style.height = 'auto'; i.style.height = Math.min(140, i.scrollHeight) + 'px'; }
+$('input').oninput = autoGrow;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('modal').classList.add('hidden'); $('assistant').classList.add('hidden'); $('quickMenu').classList.add('hidden'); } });
 
 // ---------- boot ----------
 poll();

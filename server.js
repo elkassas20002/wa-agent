@@ -7,6 +7,12 @@ const wa = require('./wa');
 const agent = require('./agent');
 const leader = require('./leader');
 
+// The encryption library prints session keys to the console; keep them out of the hosting logs.
+for (const k of ['info', 'warn', 'log']) {
+  const orig = console[k].bind(console);
+  console[k] = (...a) => { if (typeof a[0] === 'string' && /^(Closing|Opening|Removing old closed|Session already|Closing open) session/i.test(a[0])) return; orig(...a); };
+}
+
 const PORT = process.env.PORT || 3000;
 const PASSWORD = process.env.ADMIN_PASSWORD || '';
 if (!PASSWORD) console.warn('WARNING: ADMIN_PASSWORD is not set. Set it in the environment variables!');
@@ -55,6 +61,8 @@ async function exec(type, a) {
     case 'waLogout':
       await wa.logout();
       return { ok: true };
+    case 'history':
+      return wa.loadOlder(a.jid);
     case 'waConnect':
       wa.connectNow();
       return { ok: true };
@@ -145,7 +153,7 @@ app.get('/api/state', (req, res) => {
 
 app.get('/api/chats', (req, res) => {
   const now = Date.now();
-  res.json(Object.values(db.chats).filter((c) => c.lastTs).map((c) => ({ ...c, paused: c.pausedUntil > now })).sort((a, b) => b.lastTs - a.lastTs));
+  res.json(Object.values(db.chats).filter((c) => c.lastTs).map((c) => ({ ...c, paused: c.pausedUntil > now })).sort((a, b) => b.lastTs - a.lastTs).slice(0, 600));
 });
 app.get('/api/chats/:jid/messages', (req, res) => res.json(db.messages[req.params.jid] || []));
 app.get('/api/settings', (req, res) => res.json({ ...db.settings, ai: agent.aiEnabled() }));
@@ -158,6 +166,7 @@ app.post('/api/chats/:jid/send', (req, res, next) => {
 }, act('send', (req) => ({ jid: req.params.jid, text: String(req.body.text).trim() })));
 app.post('/api/chats/:jid/read', act('read', (req) => ({ jid: req.params.jid })));
 app.post('/api/chats/:jid/update', act('update', (req) => ({ jid: req.params.jid, body: req.body })));
+app.post('/api/chats/:jid/history', act('history', (req) => ({ jid: req.params.jid })));
 app.post('/api/chats/:jid/regenerate', act('regenerate', (req) => ({ jid: req.params.jid })));
 app.post('/api/settings', act('settings', (req) => ({ body: req.body })));
 app.post('/api/alerts/clear', act('alertsClear', () => ({})));

@@ -7,7 +7,7 @@ const DATA_DIR = process.env.DATA_DIR || path.join(os.homedir(), 'wa-agent-data'
 fs.mkdirSync(DATA_DIR, { recursive: true, mode: 0o700 });
 try { fs.chmodSync(DATA_DIR, 0o700); } catch (_) {}
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-const MAX_MSGS_PER_CHAT = 400;
+const MAX_MSGS_PER_CHAT = 300;
 
 const DEFAULT_SETTINGS = {
   mode: 'draft', // off | draft | auto
@@ -59,7 +59,7 @@ function writeNow() {
 let saveTimer = null;
 function save() {
   if (saveTimer) return;
-  saveTimer = setTimeout(() => { saveTimer = null; writeNow(); }, 700);
+  saveTimer = setTimeout(() => { saveTimer = null; writeNow(); }, 1500);
 }
 function flush() {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; writeNow(); }

@@ -85,6 +85,7 @@ async function pollHealth() {
       ['آخر نبضة منها', h.leaderHeartbeatAgo != null ? dur(h.leaderHeartbeatAgo) + ' مضت' : '—'],
       ['آخر تحديث للحالة', h.stateAgo != null ? dur(h.stateAgo) + ' مضت' : '—'],
       ['العملية التي خدمت هذه الصفحة', h.servedBy],
+      ['رسائل قديمة تمت مزامنتها منذ التشغيل', S && S.history ? S.history.messages + (S.history.progress != null ? ' (' + S.history.progress + '%)' : '') : '—'],
       ['المحادثات المحفوظة', h.chats],
       ['الرسائل المحفوظة', h.messages],
       ['ملف الاتصال', S ? S.profile + ' · ' + S.version : '—'],

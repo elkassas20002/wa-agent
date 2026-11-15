@@ -17,17 +17,18 @@ const agent = require('./agent');
 const AUTH_DIR = path.join(DATA_DIR, 'auth');
 const logger = pino({ level: process.env.WA_LOG_LEVEL || 'warn' });
 
-const state = { status: 'starting', qr: null, me: null, lastError: '', events: [], attempts: 0, stopped: false };
+const state = { status: 'starting', qr: null, me: null, lastError: '', events: [], attempts: 0, stopped: false, history: { messages: 0, batches: 0, lastAt: 0, progress: null } };
 let pairPhone = '';
 let sock = null;
 let reconnects = 0;
 // Connection profiles, tried in order if WhatsApp keeps closing the connection before showing a QR.
 // The first one is the setup that connected successfully on this server.
 const CONFIGS = [
-  // The library's built-in WhatsApp version is the one that works on this server;
-  // the "latest" fetched version gets refused (428) before the QR.
-  { name: 'mac-chrome-builtin-version', browser: () => Browsers.macOS('Chrome'), full: true, latest: false },
-  { name: 'ubuntu-chrome-builtin-version', browser: () => Browsers.ubuntu('Chrome'), full: false, latest: false },
+  // The library's built-in WhatsApp version works on this server; the fetched "latest" one gets refused (428).
+  // A desktop-type device with full sync is what makes WhatsApp send the old conversations when linking.
+  { name: 'mac-desktop-full', browser: () => Browsers.macOS('Desktop'), full: true, latest: false },
+  { name: 'mac-chrome-full', browser: () => Browsers.macOS('Chrome'), full: true, latest: false },
+  { name: 'ubuntu-chrome', browser: () => Browsers.ubuntu('Chrome'), full: false, latest: false },
   { name: 'mac-chrome-latest-version', browser: () => Browsers.macOS('Chrome'), full: false, latest: true }
 ];
 let cfgIndex = 0;
@@ -266,13 +267,18 @@ async function start() {
   sock.ev.on('contacts.upsert', (contacts) => updateNames(contacts));
   sock.ev.on('contacts.update', (contacts) => updateNames(contacts));
 
-  sock.ev.on('messaging-history.set', ({ messages, contacts, chats, syncType }) => {
+  sock.ev.on('messaging-history.set', ({ messages, contacts, chats, syncType, progress }) => {
     let n = 0;
     for (const m of messages || []) if (ingest(m, { live: false })) n++;
     if (contacts) updateNames(contacts);
     if (chats) updateNames(chats);
-    console.log('History sync', syncType, '- saved', n, 'messages from', (chats || []).length, 'chats');
+    state.history.messages += n;
+    state.history.batches++;
+    state.history.lastAt = Date.now();
+    if (typeof progress === 'number') state.history.progress = progress;
+    if (n) logEvent('ok', `مزامنة المحادثات القديمة: ${n} رسالة جديدة` + (typeof progress === 'number' ? ` (${progress}%)` : ''));
     emit('chats', {});
+    emit('state', publicState());
   });
 
   sock.ev.on('messages.upsert', ({ messages, type }) => {
@@ -426,6 +432,17 @@ async function regenerate(jid) {
   return chat;
 }
 
+// Ask the phone for older messages of one chat (arrive later through the history event).
+async function loadOlder(jid) {
+  if (!sock || state.status !== 'connected') throw new Error('واتساب غير متصل');
+  const list = db.messages[jid] || [];
+  if (!list.length) throw new Error('لا توجد رسائل في هذه المحادثة لطلب ما قبلها');
+  const oldest = list[0];
+  if (typeof sock.fetchMessageHistory !== 'function') throw new Error('هذه الميزة غير مدعومة في النسخة الحالية');
+  await sock.fetchMessageHistory(50, { remoteJid: jid, id: oldest.id, fromMe: !!oldest.fromMe }, oldest.ts);
+  return { ok: true };
+}
+
 function closeSocket() {
   generation++; // ignore events from the old socket
   clearTimeout(startTimer);
@@ -496,8 +513,9 @@ function publicState() {
     nextRetry: state.nextRetry || 0, connectedSince: state.connectedSince || 0, attempts: state.attempts,
     lastAttempt: state.lastAttempt || 0, profile: state.profile || '', version: state.version || '',
     pairCode: state.pairCode || '', session: hasSession(), stopped: !!state.stopped,
+    history: state.history,
     events: state.events.slice(0, 50), pid: process.pid, ai: agent.aiEnabled()
   };
 }
 
-module.exports = { start, onEvent, publicState, sendText, markRead, regenerate, logout, connectNow, stop, pairWithPhone };
+module.exports = { start, onEvent, publicState, sendText, markRead, regenerate, logout, connectNow, stop, pairWithPhone, loadOlder };
