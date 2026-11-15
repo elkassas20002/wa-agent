@@ -70,8 +70,25 @@ async function exec(type, a) {
 }
 
 const app = express();
-app.set('trust proxy', true);
-app.use(express.json({ limit: '1mb' }));
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use(express.json({ limit: '200kb' }));
+app.use((req, res, next) => {
+  res.set({
+    'X-Frame-Options': 'DENY',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'X-Robots-Tag': 'noindex, nofollow',
+    'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
+  });
+  if (req.path.startsWith('/api/')) res.set('Cache-Control', 'no-store');
+  next();
+});
+// Only real WhatsApp chat ids are accepted (also blocks keys like __proto__).
+app.param('jid', (req, res, next, jid) => {
+  if (!/^[0-9A-Za-z.:_-]{3,40}@(s\.whatsapp\.net|lid)$/.test(jid)) return res.status(400).json({ error: 'معرّف محادثة غير صحيح' });
+  next();
+});
 
 function getCookie(req, name) {
   const m = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith(name + '='));
@@ -93,11 +110,11 @@ app.post('/api/login', (req, res) => {
   const ok = PASSWORD && pw.length === PASSWORD.length && crypto.timingSafeEqual(Buffer.from(pw), Buffer.from(PASSWORD));
   if (!ok) { a.push(Date.now()); attempts.set(ip, a); return res.status(401).json({ error: 'كلمة المرور غير صحيحة' }); }
   const secure = req.secure || req.headers['x-forwarded-proto'] === 'https';
-  res.setHeader('Set-Cookie', `sid=${TOKEN}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${30 * 24 * 3600}${secure ? '; Secure' : ''}`);
+  res.setHeader('Set-Cookie', `sid=${TOKEN}; HttpOnly; Path=/; SameSite=Strict; Max-Age=${30 * 24 * 3600}${secure ? '; Secure' : ''}`);
   res.json({ ok: true });
 });
 app.post('/api/logout', (req, res) => {
-  res.setHeader('Set-Cookie', 'sid=; HttpOnly; Path=/; Max-Age=0');
+  res.setHeader('Set-Cookie', 'sid=; HttpOnly; Path=/; SameSite=Strict; Max-Age=0');
   res.json({ ok: true });
 });
 
@@ -223,4 +240,6 @@ leader.start({
   }
 });
 
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e && e.message ? e.message : e));
+process.on('uncaughtException', (e) => console.error('uncaughtException:', e && e.stack ? e.stack : e));
 process.on('SIGTERM', () => { if (leader.isLeader()) require('./store').flush(); process.exit(0); });

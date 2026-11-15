@@ -24,7 +24,8 @@ const STATUS = {
   starting: { cls: 'warn', label: 'جارٍ التشغيل', title: 'جارٍ تجهيز الاتصال بواتساب…' },
   reconnecting: { cls: 'warn', label: 'إعادة الاتصال', title: 'انقطاع مؤقت، جارٍ إعادة الاتصال' },
   blocked: { cls: 'bad', label: 'مرفوض مؤقتاً', title: 'واتساب يرفض الاتصال حالياً، اللوحة تعيد المحاولة تلقائياً' },
-  stopped: { cls: 'off', label: 'موقوف', title: 'الاتصال موقوف يدوياً' }
+  stopped: { cls: 'off', label: 'موقوف', title: 'الاتصال موقوف يدوياً' },
+  idle: { cls: 'off', label: 'غير مرتبط', title: 'انتهت صلاحية الرمز. اضغط "اتصال الآن" لإظهار رمز جديد' }
 };
 
 let S = null;
@@ -57,6 +58,7 @@ function render() {
     $('qr').classList.add('hidden'); $('qrNote').classList.remove('hidden');
     $('qrNote').textContent = S.status === 'blocked'
       ? `واتساب يرفض الاتصال مؤقتاً. المحاولة التالية بعد ${dur((S.nextRetry || 0) - Date.now())}.`
+      : S.status === 'idle' ? 'انتهت صلاحية الرمز دون مسحه. اضغط "اتصال الآن" لإظهار رمز جديد.'
       : S.status === 'stopped' ? 'الاتصال موقوف. اضغط "اتصال الآن" لإظهار الرمز.'
       : 'سيظهر الرمز هنا عندما يكون واتساب جاهزاً للربط…';
   }

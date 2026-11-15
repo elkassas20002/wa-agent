@@ -26,25 +26,30 @@ let alertsUnseen = 0;
 function renderState(s) {
   const st = $('status');
   st.classList.remove('ok', 'bad');
-  const map = { connected: 'متصل', qr: 'بانتظار مسح الرمز', reconnecting: 'إعادة الاتصال…', starting: 'جارٍ التشغيل…', blocked: 'واتساب يرفض الاتصال مؤقتاً', stopped: 'الاتصال موقوف' };
+  const map = { connected: 'متصل', qr: 'بانتظار مسح الرمز', reconnecting: 'إعادة الاتصال…', starting: 'جارٍ التشغيل…', blocked: 'واتساب يرفض الاتصال مؤقتاً', stopped: 'الاتصال موقوف', idle: 'غير مرتبط' };
   $('statusText').textContent = (map[s.status] || s.status) + (s.me ? ' — ' + (s.me.name || '+' + s.me.id.split('@')[0]) : '') + (s.ai ? ' · 🤖 ذكاء اصطناعي' : ' · ردود بالكلمات المفتاحية');
   if (s.status === 'connected') st.classList.add('ok');
   else if (s.status === 'qr') st.classList.add('bad');
   if (s.mode) $('mode').value = s.mode;
   $('btnRelink').classList.toggle('hidden', s.status === 'qr');
-  const showQr = s.status === 'qr' || (['starting', 'blocked'].includes(s.status) && !s.me);
-  $('qrOverlay').classList.toggle('hidden', !showQr);
+  const showQr = s.status === 'qr' || (['starting', 'blocked', 'idle'].includes(s.status) && !s.me);
+  if (!showQr) overlayDismissed = false;
+  $('qrOverlay').classList.toggle('hidden', !showQr || overlayDismissed);
+  $('qrNew').classList.toggle('hidden', s.status !== 'idle');
   if (s.qr) { $('qrImg').src = s.qr; $('qrImg').classList.remove('hidden'); $('qrMsg').textContent = 'امسح الرمز من تطبيق واتساب بيزنس'; }
   else {
     $('qrImg').classList.add('hidden');
     const mins = s.nextRetry ? Math.ceil((s.nextRetry - Date.now()) / 60000) : 0;
-    $('qrMsg').textContent = mins > 0
+    $('qrMsg').textContent = s.status === 'idle' ? 'انتهت صلاحية الرمز. اضغط الزر لإظهار رمز جديد.' : mins > 0
       ? `واتساب يرفض الاتصال مؤقتاً (غالباً بسبب كثرة المحاولات السابقة). سيعيد الموقع المحاولة تلقائياً خلال ${mins} دقيقة تقريباً، ولا تحتاج تفعل شيئاً.`
       : 'جارٍ تجهيز الرمز…';
   }
   if (s.status === 'connected') loadChats();
 }
 
+let overlayDismissed = false;
+$('qrNew').onclick = async () => { $('qrMsg').textContent = 'جارٍ تجهيز الرمز…'; $('qrNew').classList.add('hidden'); try { await api('/api/wa/connect', { method: 'POST' }); } catch (e) { alert(e.message); } };
+$('qrSkip').onclick = () => { overlayDismissed = true; $('qrOverlay').classList.add('hidden'); };
 $('btnRelink').onclick = async () => {
   if (!confirm('سيتم فصل جلسة واتساب الحالية وإظهار رمز QR جديد لتمسحه. متابعة؟')) return;
   $('statusText').textContent = 'جارٍ تجهيز رمز جديد…';

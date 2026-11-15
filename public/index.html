@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>لوحة واتساب الذكية</title>
-<link rel="stylesheet" href="/style.css?v=7">
+<link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body>
 <header class="topbar">
@@ -80,12 +80,14 @@
     <h2>اربط واتساب بيزنس</h2>
     <img id="qrImg" alt="QR" class="qr hidden">
     <p id="qrMsg" class="muted">جارٍ تجهيز الرمز…</p>
+    <p><button class="btn primary hidden" id="qrNew">إظهار رمز QR جديد</button></p>
     <ol class="steps">
       <li>افتح تطبيق <b>واتساب بيزنس</b> في جوالك</li>
       <li>الإعدادات ← <b>الأجهزة المرتبطة</b> ← <b>ربط جهاز</b></li>
       <li>وجّه الكاميرا إلى الرمز</li>
     </ol>
     <a class="btn" href="/connection.html">🔌 إدارة الربط (ربط برقم الجوال، سجل الاتصال…)</a>
+    <button class="btn" id="qrSkip">متابعة بدون ربط (لضبط الإعدادات)</button>
   </div>
 </div>
 
@@ -109,6 +111,6 @@
   </form>
 </aside>
 
-<script src="/app.js?v=7"></script>
+<script src="/app.js?v=8"></script>
 </body>
 </html>

@@ -120,7 +120,10 @@ function logEvent(level, text) {
   if (state.events.length > 80) state.events.length = 80;
   console.log('[wa]', text);
 }
-const hasSession = () => fs.existsSync(path.join(AUTH_DIR, 'creds.json'));
+// A session counts only once the phone has actually linked (creds.json has "me").
+const hasSession = () => {
+  try { return !!JSON.parse(fs.readFileSync(path.join(AUTH_DIR, 'creds.json'), 'utf8')).me; } catch (_) { return false; }
+};
 const REASONS = {
   401: 'تم تسجيل الخروج من الجوال',
   403: 'الحساب ممنوع من الاتصال',
@@ -165,12 +168,14 @@ async function start() {
     }
   });
   const mySock = sock;
+  let gotQr = false;
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', async (u) => {
     if (gen !== generation) return; // an old socket we already replaced
     const { connection, lastDisconnect, qr } = u;
     if (qr) {
+      gotQr = true;
       earlyFails = 0;
       totalEarlyFails = 0;
       if (state.status !== 'qr') logEvent('ok', 'واتساب جاهز للربط، رمز QR ظاهر');
@@ -217,6 +222,17 @@ async function start() {
       } else if (code === DisconnectReason.restartRequired) {
         logEvent('info', 'تم الربط، جارٍ إكمال الاتصال');
         wait = 500;
+      } else if (gotQr && !hasSession()) {
+        // The QR was shown but nobody scanned it. Don't keep knocking on WhatsApp forever:
+        // wait until someone asks for a new QR from the panel.
+        state.status = 'idle';
+        state.qr = null;
+        state.pairCode = '';
+        state.nextRetry = 0;
+        state.lastError = '';
+        logEvent('info', 'انتهت صلاحية رمز الربط دون مسحه؛ بانتظار طلب رمز جديد من اللوحة');
+        emit('state', publicState());
+        return;
       } else if (code === DisconnectReason.connectionReplaced) {
         logEvent('warn', 'الجلسة فُتحت من مكان آخر؛ إعادة المحاولة بعد دقيقة');
         state.status = 'reconnecting';
@@ -317,6 +333,13 @@ async function handleIncoming(jid) {
   }
 
   // mode === 'auto'
+  if (Date.now() - last.ts > 15 * 60 * 1000) {
+    // Old message delivered late (e.g. after a reconnect): a sudden automatic answer would look odd. Keep it as a draft.
+    chat.draft = d.reply;
+    save();
+    emit('chats', {});
+    return;
+  }
   const log = (autoReplyLog.get(jid) || []).filter((t) => t > Date.now() - 3600 * 1000);
   if (log.length >= (s.maxAutoRepliesPerHour || 6)) {
     chat.draft = d.reply;
